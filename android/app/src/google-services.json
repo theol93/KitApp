@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1030191644533",
+    "project_id": "kitapp-77939",
+    "storage_bucket": "kitapp-77939.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1030191644533:android:411ddcc4feb5c5a1eb9d3c",
+        "android_client_info": {
+          "package_name": "com.kitapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXf_JZEop3mD-UgNu7UeMsCBYkTHDT2P0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
