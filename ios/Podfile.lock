@@ -1,4 +1,26 @@
 PODS:
+  - AsyncStorage (3.0.1):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - FBLazyVector (0.84.1)
   - hermes-engine (250829098.0.9):
     - hermes-engine/Pre-built (= 250829098.0.9)
@@ -1400,6 +1422,30 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
+  - react-native-config (1.6.1):
+    - react-native-config/App (= 1.6.1)
+  - react-native-config/App (1.6.1):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - react-native-safe-area-context (5.7.0):
     - hermes-engine
     - RCTRequired
@@ -1857,6 +1903,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - "AsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -1896,6 +1943,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+  - react-native-config (from `../node_modules/react-native-config`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
@@ -1934,6 +1982,8 @@ DEPENDENCIES:
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 EXTERNAL SOURCES:
+  AsyncStorage:
+    :path: "../node_modules/@react-native-async-storage/async-storage"
   FBLazyVector:
     :path: "../node_modules/react-native/Libraries/FBLazyVector"
   hermes-engine:
@@ -2011,6 +2061,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+  react-native-config:
+    :path: "../node_modules/react-native-config"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   React-NativeModulesApple:
@@ -2085,6 +2137,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
+  AsyncStorage: 0a927dc82ea8eaa0350779b37d73b11d070ea677
   FBLazyVector: e97c19a5a442429d1988f182a1940fb08df514da
   hermes-engine: 6c3b098363b05f89a9d58d5735f9893664e3d8ab
   RCTDeprecation: af44b104091a34482596cd9bd7e8d90c4e9b4bd7
@@ -2123,6 +2176,7 @@ SPEC CHECKSUMS:
   React-logger: 517377b1d2ba7ac722d47fb2183b98de86632063
   React-Mapbuffer: 45e088dfb58dc326ae20cca1814d3726553c4cad
   React-microtasksnativemodule: ab9d1a05fe1f58ea44a97d307ef1b53463f45a3f
+  react-native-config: 0ac243e38516dbb8908a09eb87d76620a3083886
   react-native-safe-area-context: 29044d05d61f2c60d0828c373bd0ebe17eed58d0
   React-NativeModulesApple: b94faa2dce6d8c0a9d722ed7ee27b996d28b62d1
   React-networking: e409d8fb062162da6293e98b77f8d80cf4430e07
