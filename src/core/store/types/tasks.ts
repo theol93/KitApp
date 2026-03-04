@@ -9,4 +9,6 @@ export interface Task {
     priority: TaskPriority;
     deadline: string;
     category: string;
+    imageUrl?: string;
+    updatedAt?: number;
 }

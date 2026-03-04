@@ -1,16 +1,41 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import dayjs from 'dayjs';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useGetTasksQuery } from '../../core/api/firestoreApi';
+import { useGetTasksQuery, useUpdateTaskMutation, useDeleteTaskMutation } from '../../core/api/firestoreApi';
 import type { Task } from '../../core/store/types/tasks';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 type SortKey = 'deadline' | 'priority' | 'status';
 type SortDirection = 'asc' | 'desc';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 5;
+
+type DeadlineSeverity = 'ok' | 'soon' | 'overdue';
+
+const getDeadlineSeverity = (deadline: string, status: Task['status']): DeadlineSeverity => {
+  if (status === 'completed') {
+    return 'ok';
+  }
+
+  const deadlineDate = dayjs(deadline, 'YYYY-MM-DD', true);
+  if (!deadlineDate.isValid()) {
+    return 'ok';
+  }
+
+  const diffDays = deadlineDate.startOf('day').diff(dayjs().startOf('day'), 'day');
+
+  if (diffDays < 0) {
+    return 'overdue';
+  }
+
+  if (diffDays <= 2) {
+    return 'soon';
+  }
+
+  return 'ok';
+};
 
 const BottomSheetBackdropComponent = (props: BottomSheetBackdropProps) => (
   <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />
@@ -18,7 +43,9 @@ const BottomSheetBackdropComponent = (props: BottomSheetBackdropProps) => (
 
 export const TasksPage = () => {
   const navigation = useNavigation();
-  const { data: tasks = [], isLoading } = useGetTasksQuery();
+  const { data: tasks = [], isLoading, isFetching, refetch } = useGetTasksQuery();
+  const [updateTask] = useUpdateTaskMutation();
+  const [deleteTask] = useDeleteTaskMutation();
 
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('deadline');
@@ -27,7 +54,7 @@ export const TasksPage = () => {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const bottomSheetRef = useRef<BottomSheet | null>(null);
 
-  const bottomSheetSnapPoints = useMemo(() => ['70%'], []);
+  const bottomSheetSnapPoints = useMemo(() => ['50%'], []);
 
   const categories = useMemo(() => {
     const allCategories = Array.from(new Set(tasks.map(task => task.category).filter(Boolean)));
@@ -114,13 +141,35 @@ export const TasksPage = () => {
     [navigation]
   );
 
+  const handleToggleComplete = useCallback(
+    async (task: Task) => {
+      const nextStatus = task.status === 'completed' ? 'pending' : 'completed';
+      await updateTask({ id: task.id, status: nextStatus });
+    },
+    [updateTask]
+  );
+
+  const handleDeleteTask = useCallback(
+    (task: Task) => {
+      Alert.alert('Delete task', `Are you sure you want to delete "${task.title}"?`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteTask(task.id),
+        },
+      ]);
+    },
+    [deleteTask]
+  );
+
   const renderTaskItem = useCallback(
     ({ item }: { item: Task }) => (
       <Pressable onPress={() => handlePressTask(item.id)} style={styles.taskCard}>
         <View style={styles.taskHeader}>
-          <Text style={styles.taskTitle}>{item.title}</Text>
-          <View style={[styles.badge, styles[`badgePriority_${item.priority}`]]}>
-            <Text style={styles.badgeText}>{item.priority}</Text>
+          <Text style={[styles.taskTitle, item.status === 'completed' && styles.taskTitleCompleted]}>{item.title}</Text>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>{item.status === 'completed' ? 'Completed' : 'Pending'}</Text>
           </View>
         </View>
         {!!item.description && (
@@ -129,14 +178,33 @@ export const TasksPage = () => {
           </Text>
         )}
         <View style={styles.taskFooter}>
-          <Text style={styles.taskMeta}>Due {item.deadline}</Text>
+          <View style={styles.deadlineRow}>
+            <View
+              style={[styles.deadlineDot, styles[`deadlineDot_${getDeadlineSeverity(item.deadline, item.status)}`]]}
+            />
+            <Text style={styles.taskMeta}>Due {item.deadline}</Text>
+          </View>
           <View style={styles.categoryPill}>
             <Text style={styles.categoryPillText}>{item.category}</Text>
           </View>
         </View>
+        <View style={styles.taskActionsRow}>
+          <TouchableOpacity
+            onPress={() => handleToggleComplete(item)}
+            style={[styles.actionButton, item.status === 'completed' && styles.actionButtonSecondary]}
+          >
+            <Text style={styles.actionButtonText}>{item.status === 'completed' ? 'Mark pending' : 'Mark done'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleDeleteTask(item)}
+            style={[styles.actionButton, styles.actionButtonDanger]}
+          >
+            <Text style={styles.actionButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
       </Pressable>
     ),
-    [handlePressTask]
+    [handlePressTask, handleToggleComplete, handleDeleteTask]
   );
 
   const renderCategory = useCallback(
@@ -161,6 +229,9 @@ export const TasksPage = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Tasks</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Task' as never)} style={styles.addButton}>
+          <Text style={styles.addButtonText}>+</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.controlsRow}>
@@ -202,6 +273,8 @@ export const TasksPage = () => {
         contentContainerStyle={styles.listContent}
         onEndReachedThreshold={0.3}
         onEndReached={handleEndReached}
+        refreshing={isFetching}
+        onRefresh={refetch}
         ListEmptyComponent={
           !isLoading ? (
             <View style={styles.emptyState}>
@@ -212,48 +285,42 @@ export const TasksPage = () => {
         }
       />
 
-      <GestureHandlerRootView style={styles.container}>
-        <BottomSheet
-          ref={bottomSheetRef}
-          index={0}
-          snapPoints={bottomSheetSnapPoints}
-          backdropComponent={BottomSheetBackdropComponent}
-          enablePanDownToClose
-          backgroundStyle={styles.bottomSheetBackground}
-          handleIndicatorStyle={styles.bottomSheetHandle}
-        >
-          <BottomSheetView style={styles.bottomSheetContent}>
-            <Pressable
-              style={[styles.bottomSheetOption, sortKey === 'deadline' && styles.bottomSheetOptionActive]}
-              onPress={() => handleSelectSortKey('deadline')}
-            >
-              <Text
-                style={[styles.bottomSheetOptionText, sortKey === 'deadline' && styles.bottomSheetOptionTextActive]}
-              >
-                Deadline
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.bottomSheetOption, sortKey === 'priority' && styles.bottomSheetOptionActive]}
-              onPress={() => handleSelectSortKey('priority')}
-            >
-              <Text
-                style={[styles.bottomSheetOptionText, sortKey === 'priority' && styles.bottomSheetOptionTextActive]}
-              >
-                Priority
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.bottomSheetOption, sortKey === 'status' && styles.bottomSheetOptionActive]}
-              onPress={() => handleSelectSortKey('status')}
-            >
-              <Text style={[styles.bottomSheetOptionText, sortKey === 'status' && styles.bottomSheetOptionTextActive]}>
-                Status
-              </Text>
-            </Pressable>
-          </BottomSheetView>
-        </BottomSheet>
-      </GestureHandlerRootView>
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={-1}
+        snapPoints={bottomSheetSnapPoints}
+        backdropComponent={BottomSheetBackdropComponent}
+        enablePanDownToClose
+        backgroundStyle={styles.bottomSheetBackground}
+        handleIndicatorStyle={styles.bottomSheetHandle}
+      >
+        <BottomSheetView style={styles.bottomSheetContent}>
+          <Pressable
+            style={[styles.bottomSheetOption, sortKey === 'deadline' && styles.bottomSheetOptionActive]}
+            onPress={() => handleSelectSortKey('deadline')}
+          >
+            <Text style={[styles.bottomSheetOptionText, sortKey === 'deadline' && styles.bottomSheetOptionTextActive]}>
+              Deadline
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.bottomSheetOption, sortKey === 'priority' && styles.bottomSheetOptionActive]}
+            onPress={() => handleSelectSortKey('priority')}
+          >
+            <Text style={[styles.bottomSheetOptionText, sortKey === 'priority' && styles.bottomSheetOptionTextActive]}>
+              Priority
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.bottomSheetOption, sortKey === 'status' && styles.bottomSheetOptionActive]}
+            onPress={() => handleSelectSortKey('status')}
+          >
+            <Text style={[styles.bottomSheetOptionText, sortKey === 'status' && styles.bottomSheetOptionTextActive]}>
+              Status
+            </Text>
+          </Pressable>
+        </BottomSheetView>
+      </BottomSheet>
     </SafeAreaView>
   );
 };
@@ -267,11 +334,27 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    marginTop: -2,
   },
   controlsRow: {
     flexDirection: 'row',
@@ -350,6 +433,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  taskTitleCompleted: {
+    color: '#9CA3AF',
+    textDecorationLine: 'line-through',
+  },
   taskDescription: {
     fontSize: 13,
     color: '#C4C4C4',
@@ -374,6 +461,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#E5E7EB',
   },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#1F2937',
+  },
+  statusPillText: {
+    fontSize: 11,
+    color: '#D1D5DB',
+  },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -393,6 +490,49 @@ const styles = StyleSheet.create({
   },
   badgePriority_high: {
     backgroundColor: '#F87171',
+  },
+  deadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  deadlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+  },
+  deadlineDot_ok: {
+    backgroundColor: '#10B981',
+  },
+  deadlineDot_soon: {
+    backgroundColor: '#F59E0B',
+  },
+  deadlineDot_overdue: {
+    backgroundColor: '#EF4444',
+  },
+  taskActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
+    gap: 8,
+  },
+  actionButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#374151',
+  },
+  actionButtonSecondary: {
+    backgroundColor: '#4B5563',
+  },
+  actionButtonDanger: {
+    backgroundColor: '#B91C1C',
+  },
+  actionButtonText: {
+    color: '#F9FAFB',
+    fontSize: 12,
+    fontWeight: '500',
   },
   emptyState: {
     flex: 1,
@@ -418,6 +558,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4B5563',
   },
   bottomSheetContent: {
+    paddingVertical: 60,
     paddingHorizontal: 20,
     paddingTop: 12,
   },

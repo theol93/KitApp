@@ -35,7 +35,10 @@ export const firestoreApi = createApi({
         addTask: builder.mutation<void, Omit<Task, 'id'>>({
             async queryFn(task) {
                 try {
-                    await addDoc(collection(db, 'tasks'), task);
+                    await addDoc(collection(db, 'tasks'), {
+                        ...task,
+                        updatedAt: Date.now(),
+                    });
                     return { data: undefined };
                 } catch (error) {
                     return { error };
@@ -47,7 +50,10 @@ export const firestoreApi = createApi({
         updateTask: builder.mutation<void, Partial<Task> & { id: string }>({
             async queryFn({ id, ...data }) {
                 try {
-                    await updateDoc(doc(db, 'tasks', id), data);
+                    await updateDoc(doc(db, 'tasks', id), {
+                        ...data,
+                        updatedAt: Date.now(),
+                    });
                     return { data: undefined };
                 } catch (error) {
                     return { error };
