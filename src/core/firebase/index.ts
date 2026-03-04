@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { Platform } from 'react-native';
 import Config from "react-native-config";
 
 const firebaseConfig = {
@@ -9,7 +10,7 @@ const firebaseConfig = {
     projectId: Config.FIREBASE_PROJECT_ID,
     storageBucket: Config.FIREBASE_STORAGE_BUCKET,
     messagingSenderId: Config.FIREBASE_MESSAGING_SENDER_ID,
-    appId: Config.FIREBASE_APP_ID,
+    appId: Platform.OS === 'ios' ? Config.FIREBASE_APP_ID_IOS : Config.FIREBASE_APP_ID_ANDROID,
 };
 
 
