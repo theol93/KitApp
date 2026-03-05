@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -11,10 +11,27 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Controller, Resolver, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import dayjs from 'dayjs';
 import { launchImageLibrary, type Asset } from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Task, TaskPriority, TaskStatus } from '../../core/store/types/tasks';
+
+const taskSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(100, 'Title is too long'),
+  description: z.string().max(1000, 'Description is too long').default(''),
+  status: z.enum(['pending', 'completed'] as const),
+  priority: z.enum(['low', 'medium', 'high'] as const),
+  deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  deadlineDate: z.date(),
+  category: z.string().max(50, 'Category is too long').default(''),
+  localImageUri: z.string().optional(),
+  imageUrl: z.string().optional(),
+});
+
+type TaskFormValues = z.infer<typeof taskSchema>;
 
 type TaskFormProps = {
   headerTitle: string;
@@ -23,7 +40,19 @@ type TaskFormProps = {
   isEditMode: boolean;
   isSubmitting: boolean;
   draftKey: string;
-  onSubmit: (payload: Omit<Task, 'id'>, opts?: { overwrite?: boolean }) => Promise<void> | void;
+  onSubmit: (payload: Omit<Task, 'id'>) => Promise<void>;
+};
+
+const defaultTaskValues: TaskFormValues = {
+  title: '',
+  description: '',
+  status: 'pending',
+  priority: 'medium',
+  deadline: dayjs().add(1, 'day').format('YYYY-MM-DD'),
+  deadlineDate: dayjs().add(1, 'day').toDate(),
+  category: '',
+  localImageUri: undefined,
+  imageUrl: undefined,
 };
 
 export const TaskForm: React.FC<TaskFormProps> = ({
@@ -33,150 +62,119 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   draftKey,
   onSubmit,
 }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<TaskStatus>('pending');
-  const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [deadline, setDeadline] = useState(dayjs().add(1, 'day').format('YYYY-MM-DD'));
-  const [category, setCategory] = useState('');
-  const [deadlineDate, setDeadlineDate] = useState<Date>(dayjs().add(1, 'day').toDate());
-  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
-  const [localImageUri, setLocalImageUri] = useState<string | undefined>(undefined);
   const autosaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialUpdatedAtRef = useRef<number | null>(null);
+  const [showDeadlinePicker, setShowDeadlinePicker] = React.useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isValid },
+  } = useForm<TaskFormValues>({
+    resolver: zodResolver(taskSchema) as Resolver<TaskFormValues>,
+    defaultValues: defaultTaskValues,
+    mode: 'onChange',
+  });
+
+  const watchedValues = watch();
 
   useEffect(() => {
     if (existingTask) {
-      setTitle(existingTask.title);
-      setDescription(existingTask.description ?? '');
-      setStatus(existingTask.status);
-      setPriority(existingTask.priority);
-      setDeadline(existingTask.deadline);
-      setDeadlineDate(dayjs(existingTask.deadline).toDate());
-      setCategory(existingTask.category);
-      setImageUrl(existingTask.imageUrl);
-      setLocalImageUri(existingTask.imageUrl);
-      if (initialUpdatedAtRef.current === null) {
-        initialUpdatedAtRef.current = existingTask.updatedAt ?? null;
-      }
+      reset({
+        title: existingTask.title,
+        description: existingTask.description ?? '',
+        status: existingTask.status,
+        priority: existingTask.priority,
+        deadline: existingTask.deadline,
+        deadlineDate: dayjs(existingTask.deadline).toDate(),
+        category: existingTask.category,
+        imageUrl: existingTask.imageUrl,
+        localImageUri: existingTask.imageUrl,
+      });
     }
-  }, [existingTask]);
-
-  const getDraftKey = useMemo(() => draftKey, [draftKey]);
+  }, [existingTask, reset]);
 
   useEffect(() => {
     const loadDraft = async () => {
       try {
-        const raw = await AsyncStorage.getItem(getDraftKey);
-        if (!raw) {
-          return;
-        }
-        const draft = JSON.parse(raw) as {
-          title?: string;
-          description?: string;
-          status?: TaskStatus;
-          priority?: TaskPriority;
-          deadline?: string;
-          category?: string;
-          imageUrl?: string;
-        };
+        const raw = await AsyncStorage.getItem(draftKey);
+        if (!raw) return;
 
-        if (draft.title !== undefined) setTitle(draft.title);
-        if (draft.description !== undefined) setDescription(draft.description);
-        if (draft.status !== undefined) setStatus(draft.status);
-        if (draft.priority !== undefined) setPriority(draft.priority);
+        const draft = JSON.parse(raw) as Partial<TaskFormValues>;
+
+        if (draft.title !== undefined) setValue('title', draft.title);
+        if (draft.description !== undefined) setValue('description', draft.description);
+        if (draft.status !== undefined) setValue('status', draft.status);
+        if (draft.priority !== undefined) setValue('priority', draft.priority);
         if (draft.deadline) {
-          setDeadline(draft.deadline);
-          setDeadlineDate(dayjs(draft.deadline).toDate());
+          setValue('deadline', draft.deadline);
+          setValue('deadlineDate', dayjs(draft.deadline).toDate());
         }
-        if (draft.category !== undefined) setCategory(draft.category);
+        if (draft.category !== undefined) setValue('category', draft.category);
         if (draft.imageUrl !== undefined) {
-          setImageUrl(draft.imageUrl);
-          setLocalImageUri(draft.imageUrl);
+          setValue('imageUrl', draft.imageUrl);
+          setValue('localImageUri', draft.imageUrl);
         }
       } catch (error) {
-        console.log('Error: ', error);
+        console.log('Error loading draft:', error);
       }
     };
 
     loadDraft();
-  }, [getDraftKey]);
+  }, [draftKey, setValue]);
+
+  useEffect(() => {
+    if (autosaveTimeout.current) clearTimeout(autosaveTimeout.current);
+
+    autosaveTimeout.current = setTimeout(() => {
+      AsyncStorage.setItem(draftKey, JSON.stringify(watchedValues));
+    }, 500);
+
+    return () => {
+      if (autosaveTimeout.current) clearTimeout(autosaveTimeout.current);
+    };
+  }, [watchedValues, draftKey]);
 
   const handleDeadlineChange = (event: DateTimePickerEvent, selected?: Date) => {
     if (event.type === 'dismissed') {
       setShowDeadlinePicker(false);
       return;
     }
-    const currentDate = selected ?? deadlineDate;
+    const currentDate = selected ?? watchedValues.deadlineDate;
     setShowDeadlinePicker(false);
-    setDeadlineDate(currentDate);
-    setDeadline(dayjs(currentDate).format('YYYY-MM-DD'));
+    setValue('deadlineDate', currentDate, { shouldValidate: true });
+    setValue('deadline', dayjs(currentDate).format('YYYY-MM-DD'), { shouldValidate: true });
   };
 
   const handlePickImage = () => {
     launchImageLibrary(
-      {
-        mediaType: 'photo',
-        quality: 0.8,
-      },
+      { mediaType: 'photo', quality: 0.8 },
       (response: { didCancel?: boolean; errorCode?: string; assets?: Asset[] }) => {
-        if (response.didCancel || response.errorCode) {
-          return;
-        }
-        const asset = response.assets && (response.assets[0] as Asset | undefined);
+        if (response.didCancel || response.errorCode) return;
+        const asset = response.assets?.[0];
         if (asset?.uri) {
-          setLocalImageUri(asset.uri);
+          setValue('localImageUri', asset.uri, { shouldValidate: true });
         }
       }
     );
   };
 
-  useEffect(() => {
-    if (autosaveTimeout.current) {
-      clearTimeout(autosaveTimeout.current);
-    }
-
-    const draft = {
-      title,
-      description,
-      status,
-      priority,
-      deadline,
-      category,
-      imageUrl: localImageUri ?? imageUrl,
-    };
-
-    autosaveTimeout.current = setTimeout(() => {
-      AsyncStorage.setItem(getDraftKey, JSON.stringify(draft));
-    }, 500);
-
-    return () => {
-      if (autosaveTimeout.current) {
-        clearTimeout(autosaveTimeout.current);
-      }
-    };
-  }, [title, description, status, priority, deadline, category, localImageUri, imageUrl, getDraftKey]);
-
-  const canSubmit = title.trim().length > 0 && !isSubmitting;
-
-  const handleSubmit = () => {
-    if (!title.trim()) {
-      return;
-    }
-
+  const onFormSubmit = (data: TaskFormValues) => {
     const payload: Omit<Task, 'id'> = {
-      title: title.trim(),
-      description: description.trim() || '',
-      status,
-      priority,
-      deadline: dayjs(deadlineDate).format('YYYY-MM-DD'),
-      category: category.trim() || 'General',
+      title: data.title.trim(),
+      description: data.description?.trim() ?? '',
+      status: data.status,
+      priority: data.priority,
+      deadline: dayjs(data.deadlineDate).format('YYYY-MM-DD'),
+      category: data.category?.trim() || 'General',
       updatedAt: Date.now(),
     };
-
     onSubmit(payload);
   };
+
+  const canSubmit = isValid && !isSubmitting;
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -187,108 +185,161 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       >
         <View style={styles.field}>
           <Text style={styles.label}>Title</Text>
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Task title"
-            placeholderTextColor="#6B7280"
-            style={styles.input}
+          <Controller
+            control={control}
+            name="title"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                value={value}
+                onChangeText={onChange}
+                placeholder="Task title"
+                placeholderTextColor="#6B7280"
+                style={[styles.input, !!errors.title && styles.inputError]}
+              />
+            )}
           />
+          {errors.title && <Text style={styles.errorText}>{errors.title.message}</Text>}
         </View>
 
         <View style={styles.field}>
           <Text style={styles.label}>Description</Text>
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Add more details..."
-            placeholderTextColor="#6B7280"
-            style={[styles.input, styles.inputMultiline]}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                value={value}
+                onChangeText={onChange}
+                placeholder="Add more details..."
+                placeholderTextColor="#6B7280"
+                style={[styles.input, styles.inputMultiline, !!errors.description && styles.inputError]}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            )}
           />
+          {errors.description && <Text style={styles.errorText}>{errors.description.message}</Text>}
         </View>
 
         <View style={styles.field}>
           <Text style={styles.label}>Image</Text>
-          {localImageUri && (
-            <View style={styles.imagePreviewWrapper}>
-              <Image source={{ uri: localImageUri }} style={styles.imagePreview} />
-            </View>
-          )}
-          <Pressable onPress={handlePickImage} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>{localImageUri ? 'Change image' : 'Attach image'}</Text>
-          </Pressable>
+          <Controller
+            control={control}
+            name="localImageUri"
+            render={({ field: { value } }) => (
+              <>
+                {value && (
+                  <View style={styles.imagePreviewWrapper}>
+                    <Image source={{ uri: value }} style={styles.imagePreview} />
+                  </View>
+                )}
+                <Pressable onPress={handlePickImage} style={styles.secondaryButton}>
+                  <Text style={styles.secondaryButtonText}>{value ? 'Change image' : 'Attach image'}</Text>
+                </Pressable>
+              </>
+            )}
+          />
         </View>
 
         <View style={styles.row}>
           <View style={[styles.field, styles.rowItem]}>
             <Text style={styles.label}>Status</Text>
-            <View style={styles.chipRow}>
-              {(['pending', 'completed'] as TaskStatus[]).map(s => {
-                const active = status === s;
-                return (
-                  <Pressable key={s} onPress={() => setStatus(s)} style={[styles.chip, active && styles.chipActive]}>
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {s === 'pending' ? 'Pending' : 'Completed'}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Controller
+              control={control}
+              name="status"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.chipRow}>
+                  {(['pending', 'completed'] as TaskStatus[]).map(s => {
+                    const active = value === s;
+                    return (
+                      <Pressable key={s} onPress={() => onChange(s)} style={[styles.chip, active && styles.chipActive]}>
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {s === 'pending' ? 'Pending' : 'Completed'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            />
           </View>
 
           <View style={[styles.field, styles.rowItem]}>
             <Text style={styles.label}>Priority</Text>
-            <View style={styles.chipRow}>
-              {(['low', 'medium', 'high'] as TaskPriority[]).map(p => {
-                const active = priority === p;
-                return (
-                  <Pressable key={p} onPress={() => setPriority(p)} style={[styles.chip, active && styles.chipActive]}>
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Controller
+              control={control}
+              name="priority"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.chipRow}>
+                  {(['low', 'medium', 'high'] as TaskPriority[]).map(p => {
+                    const active = value === p;
+                    return (
+                      <Pressable key={p} onPress={() => onChange(p)} style={[styles.chip, active && styles.chipActive]}>
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            />
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={[styles.field, styles.rowItem]}>
             <Text style={styles.label}>Deadline</Text>
-            <Pressable onPress={() => setShowDeadlinePicker(true)} style={[styles.input, styles.deadlineInput]}>
-              <Text style={styles.deadlineText}>{deadline}</Text>
-            </Pressable>
-            {showDeadlinePicker && (
-              <DateTimePicker
-                value={deadlineDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleDeadlineChange}
-                minimumDate={new Date()}
-              />
-            )}
+            <Controller
+              control={control}
+              name="deadline"
+              render={({ field: { value } }) => (
+                <>
+                  <Pressable
+                    onPress={() => setShowDeadlinePicker(true)}
+                    style={[styles.input, styles.deadlineInput, !!errors.deadline && styles.inputError]}
+                  >
+                    <Text style={styles.deadlineText}>{value}</Text>
+                  </Pressable>
+                  {showDeadlinePicker && (
+                    <DateTimePicker
+                      value={watchedValues.deadlineDate}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={handleDeadlineChange}
+                      minimumDate={new Date()}
+                    />
+                  )}
+                </>
+              )}
+            />
+            {errors.deadline && <Text style={styles.errorText}>{errors.deadline.message}</Text>}
           </View>
 
           <View style={[styles.field, styles.rowItem]}>
             <Text style={styles.label}>Category</Text>
-            <TextInput
-              value={category}
-              onChangeText={setCategory}
-              placeholder="Work, Personal, ..."
-              placeholderTextColor="#6B7280"
-              style={styles.input}
+            <Controller
+              control={control}
+              name="category"
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder="Work, Personal, ..."
+                  placeholderTextColor="#6B7280"
+                  style={[styles.input, !!errors.category && styles.inputError]}
+                />
+              )}
             />
+            {errors.category && <Text style={styles.errorText}>{errors.category.message}</Text>}
           </View>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
-          onPress={handleSubmit}
+          onPress={handleSubmit(onFormSubmit)}
           disabled={!canSubmit}
           style={[styles.primaryButton, !canSubmit && styles.primaryButtonDisabled]}
         >
@@ -326,6 +377,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: '#FFFFFF',
     fontSize: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  inputError: {
+    borderColor: '#EF4444',
   },
   inputMultiline: {
     minHeight: 100,
@@ -336,6 +392,11 @@ const styles = StyleSheet.create({
   deadlineText: {
     color: '#FFFFFF',
     fontSize: 14,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 11,
+    marginTop: 4,
   },
   row: {
     flexDirection: 'row',
