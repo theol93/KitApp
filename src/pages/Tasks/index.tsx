@@ -7,6 +7,8 @@ import { useGetTasksPageQuery, useUpdateTaskMutation, useDeleteTaskMutation } fr
 import { TaskCard } from '../../components/tasks/TaskCard';
 import { TaskCategoryChips } from '../../components/tasks/TaskCategoryChips';
 import type { Task } from '../../core/store/types/tasks';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../router/types';
 
 type SortKey = 'deadline' | 'priority' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -18,7 +20,7 @@ const BottomSheetBackdropComponent = (props: BottomSheetBackdropProps) => (
 );
 
 export const TasksPage = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [cursor, setCursor] = useState<number | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const { data: pageData, isLoading, isFetching } = useGetTasksPageQuery({ limit: PAGE_SIZE, cursor });
@@ -126,7 +128,6 @@ export const TasksPage = () => {
 
   const handlePressTask = useCallback(
     (taskId: string) => {
-      // @ts-expect-error: simple navigation without strict typing
       navigation.navigate('Task', { taskId });
     },
     [navigation]

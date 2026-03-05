@@ -1,20 +1,14 @@
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
 import { useGetTasksQuery, useAddTaskMutation, useUpdateTaskMutation } from '../../core/api/firestoreApi';
 import type { Task } from '../../core/store/types/tasks';
 import { TaskForm } from '../../components/tasks/TaskForm';
 import Toast from 'react-native-toast-message';
+import { TaskProps } from '../../router/types';
 
-type RouteParams = {
-  taskId?: string;
-};
-
-export const TaskPage = () => {
-  const route = useRoute();
-  const navigation = useNavigation();
-  const { taskId } = (route.params as RouteParams) ?? {};
+export const TaskPage = ({ navigation, route }: TaskProps) => {
+  const { taskId } = route.params ?? {};
 
   const isEditMode = !!taskId;
 
