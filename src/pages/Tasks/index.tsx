@@ -10,8 +10,16 @@ import type { Task } from '../../core/store/types/tasks';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../router/types';
 
-type SortKey = 'deadline' | 'priority' | 'status';
-type SortDirection = 'asc' | 'desc';
+enum SortKey {
+  Deadline = 'deadline',
+  Priority = 'priority',
+  Status = 'status',
+}
+
+enum SortDirection {
+  Asc = 'asc',
+  Desc = 'desc',
+}
 
 const PAGE_SIZE = 5;
 
@@ -29,8 +37,8 @@ export const TasksPage = () => {
 
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('deadline');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortKey, setSortKey] = useState<SortKey>(SortKey.Deadline);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(SortDirection.Asc);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const bottomSheetRef = useRef<BottomSheet | null>(null);
 
@@ -119,7 +127,7 @@ export const TasksPage = () => {
   const hasMore = !!pageData?.nextCursor;
 
   const toggleSort = useCallback(() => {
-    setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    setSortDirection(prev => (prev === SortDirection.Asc ? SortDirection.Desc : SortDirection.Asc));
   }, []);
 
   const openSortSheet = useCallback(() => {
@@ -246,7 +254,7 @@ export const TasksPage = () => {
         <BottomSheetView style={styles.bottomSheetContent}>
           <Pressable
             style={[styles.bottomSheetOption, sortKey === 'deadline' && styles.bottomSheetOptionActive]}
-            onPress={() => handleSelectSortKey('deadline')}
+            onPress={() => handleSelectSortKey(SortKey.Deadline)}
           >
             <Text style={[styles.bottomSheetOptionText, sortKey === 'deadline' && styles.bottomSheetOptionTextActive]}>
               Deadline
@@ -254,7 +262,7 @@ export const TasksPage = () => {
           </Pressable>
           <Pressable
             style={[styles.bottomSheetOption, sortKey === 'priority' && styles.bottomSheetOptionActive]}
-            onPress={() => handleSelectSortKey('priority')}
+            onPress={() => handleSelectSortKey(SortKey.Priority)}
           >
             <Text style={[styles.bottomSheetOptionText, sortKey === 'priority' && styles.bottomSheetOptionTextActive]}>
               Priority
@@ -262,7 +270,7 @@ export const TasksPage = () => {
           </Pressable>
           <Pressable
             style={[styles.bottomSheetOption, sortKey === 'status' && styles.bottomSheetOptionActive]}
-            onPress={() => handleSelectSortKey('status')}
+            onPress={() => handleSelectSortKey(SortKey.Status)}
           >
             <Text style={[styles.bottomSheetOptionText, sortKey === 'status' && styles.bottomSheetOptionTextActive]}>
               Status
