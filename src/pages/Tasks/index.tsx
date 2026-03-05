@@ -27,11 +27,22 @@ export const TasksPage = () => {
   const [updateTask] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
 
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('deadline');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const bottomSheetRef = useRef<BottomSheet | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [searchInput]);
 
   useEffect(() => {
     if (!pageData?.tasks) {
@@ -65,8 +76,8 @@ export const TasksPage = () => {
       result = result.filter(task => task.category === selectedCategory);
     }
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       result = result.filter(
         task => task.title.toLowerCase().includes(q) || (task.description ?? '').toLowerCase().includes(q)
       );
@@ -103,7 +114,7 @@ export const TasksPage = () => {
     });
 
     return result;
-  }, [tasks, selectedCategory, search, sortKey, sortDirection]);
+  }, [tasks, selectedCategory, debouncedSearch, sortKey, sortDirection]);
 
   const hasMore = !!pageData?.nextCursor;
 
@@ -169,8 +180,8 @@ export const TasksPage = () => {
           <TextInput
             placeholder="Search tasks"
             placeholderTextColor="#777"
-            value={search}
-            onChangeText={setSearch}
+            value={searchInput}
+            onChangeText={setSearchInput}
             style={styles.searchInput}
           />
         </View>
