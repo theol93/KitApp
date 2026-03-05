@@ -43,7 +43,7 @@ const BottomSheetBackdropComponent = (props: BottomSheetBackdropProps) => (
 
 export const TasksPage = () => {
   const navigation = useNavigation();
-  const { data: tasks = [], isLoading, isFetching, refetch } = useGetTasksQuery();
+  const { data: tasks = [], isLoading } = useGetTasksQuery();
   const [updateTask] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
 
@@ -273,8 +273,6 @@ export const TasksPage = () => {
         contentContainerStyle={styles.listContent}
         onEndReachedThreshold={0.3}
         onEndReached={handleEndReached}
-        refreshing={isFetching}
-        onRefresh={refetch}
         ListEmptyComponent={
           !isLoading ? (
             <View style={styles.emptyState}>

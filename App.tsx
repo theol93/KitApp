@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import AppRoutes from './src/router';
 import { NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Toast from 'react-native-toast-message';
 
 if (__DEV__) {
   import('./reactotronConfig');
@@ -18,6 +19,7 @@ function App() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <NavigationContainer>
             <AppRoutes />
+            <Toast />
           </NavigationContainer>
         </GestureHandlerRootView>
       </Provider>
