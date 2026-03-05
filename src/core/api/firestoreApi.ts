@@ -1,8 +1,25 @@
 import { createApi, fakeBaseQuery } from '@reduxjs/toolkit/query/react';
-import { collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  doc,
+  onSnapshot,
+  getDocs,
+  query,
+  orderBy,
+  limit as fsLimit,
+  startAfter,
+} from 'firebase/firestore';
 import { db } from '../firebase';
 import { Task } from '../store/types/tasks';
 import Toast from 'react-native-toast-message';
+
+type PaginatedTasksResult = {
+  tasks: Task[];
+  nextCursor: number | null;
+};
 
 export const firestoreApi = createApi({
   reducerPath: 'firestoreApi',
@@ -38,6 +55,34 @@ export const firestoreApi = createApi({
         await cacheEntryRemoved;
         unsubscribe();
       },
+    }),
+
+    getTasksPage: builder.query<PaginatedTasksResult, { limit: number; cursor?: number | null }>({
+      async queryFn({ limit, cursor }) {
+        try {
+          let q = query(collection(db, 'tasks'), orderBy('updatedAt', 'desc'), fsLimit(limit));
+
+          if (cursor != null) {
+            q = query(collection(db, 'tasks'), orderBy('updatedAt', 'desc'), startAfter(cursor), fsLimit(limit));
+          }
+
+          const snapshot = await getDocs(q);
+          const tasks: Task[] = snapshot.docs.map(item => ({ id: item.id, ...item.data() } as Task));
+          const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+          const nextCursor = lastDoc ? (lastDoc.data().updatedAt ?? null) : null;
+
+          return { data: { tasks, nextCursor } };
+        } catch (error) {
+          Toast.show({
+            type: 'error',
+            text1: 'Something went wrong!',
+            position: 'top',
+          });
+
+          return { error };
+        }
+      },
+      providesTags: ['Task'],
     }),
 
     addTask: builder.mutation<void, Omit<Task, 'id'>>({
@@ -117,4 +162,10 @@ export const firestoreApi = createApi({
   }),
 });
 
-export const { useGetTasksQuery, useAddTaskMutation, useUpdateTaskMutation, useDeleteTaskMutation } = firestoreApi;
+export const {
+  useGetTasksQuery,
+  useGetTasksPageQuery,
+  useAddTaskMutation,
+  useUpdateTaskMutation,
+  useDeleteTaskMutation,
+} = firestoreApi;

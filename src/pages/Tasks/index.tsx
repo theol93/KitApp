@@ -1,10 +1,10 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import dayjs from 'dayjs';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useGetTasksQuery, useUpdateTaskMutation, useDeleteTaskMutation } from '../../core/api/firestoreApi';
+import { useGetTasksPageQuery, useUpdateTaskMutation, useDeleteTaskMutation } from '../../core/api/firestoreApi';
 import type { Task } from '../../core/store/types/tasks';
 
 type SortKey = 'deadline' | 'priority' | 'status';
@@ -43,7 +43,9 @@ const BottomSheetBackdropComponent = (props: BottomSheetBackdropProps) => (
 
 export const TasksPage = () => {
   const navigation = useNavigation();
-  const { data: tasks = [], isLoading } = useGetTasksQuery();
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const { data: pageData, isLoading, isFetching } = useGetTasksPageQuery({ limit: PAGE_SIZE, cursor });
   const [updateTask] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
 
@@ -51,8 +53,24 @@ export const TasksPage = () => {
   const [sortKey, setSortKey] = useState<SortKey>('deadline');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const bottomSheetRef = useRef<BottomSheet | null>(null);
+
+  useEffect(() => {
+    if (!pageData?.tasks) {
+      return;
+    }
+
+    setTasks(prev => {
+      if (!cursor) {
+        return pageData.tasks;
+      }
+
+      const existingIds = new Set(prev.map(task => task.id));
+      const newTasks = pageData.tasks.filter(task => !existingIds.has(task.id));
+
+      return [...prev, ...newTasks];
+    });
+  }, [pageData, cursor]);
 
   const bottomSheetSnapPoints = useMemo(() => ['50%'], []);
 
@@ -109,10 +127,7 @@ export const TasksPage = () => {
     return result;
   }, [tasks, selectedCategory, search, sortKey, sortDirection]);
 
-  const paginatedTasks = useMemo(
-    () => filteredAndSortedTasks.slice(0, visibleCount),
-    [filteredAndSortedTasks, visibleCount]
-  );
+  const hasMore = !!pageData?.nextCursor;
 
   const toggleSort = useCallback(() => {
     setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
@@ -127,11 +142,11 @@ export const TasksPage = () => {
     bottomSheetRef.current?.close();
   }, []);
 
-  const handleEndReached = useCallback(() => {
-    if (visibleCount < filteredAndSortedTasks.length) {
-      setVisibleCount(prev => prev + PAGE_SIZE);
+  const handleLoadMore = useCallback(() => {
+    if (hasMore && !isFetching && !isLoading && pageData?.nextCursor != null) {
+      setCursor(pageData.nextCursor);
     }
-  }, [visibleCount, filteredAndSortedTasks.length]);
+  }, [hasMore, isFetching, isLoading, pageData]);
 
   const handlePressTask = useCallback(
     (taskId: string) => {
@@ -214,7 +229,6 @@ export const TasksPage = () => {
         <Pressable
           onPress={() => {
             setSelectedCategory(item);
-            setVisibleCount(PAGE_SIZE);
           }}
           style={[styles.categoryChip, isActive && styles.categoryChipActive]}
         >
@@ -267,12 +281,25 @@ export const TasksPage = () => {
       </View>
 
       <FlatList
-        data={paginatedTasks}
+        data={filteredAndSortedTasks}
         keyExtractor={item => item.id}
         renderItem={renderTaskItem}
         contentContainerStyle={styles.listContent}
-        onEndReachedThreshold={0.3}
-        onEndReached={handleEndReached}
+        ListFooterComponent={
+          hasMore ? (
+            <View style={styles.loadMoreContainer}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.loadMoreButton]}
+                onPress={handleLoadMore}
+                disabled={isFetching || isLoading}
+              >
+                <Text style={styles.actionButtonText}>
+                  {isFetching || isLoading ? 'Loading…' : 'Load more'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           !isLoading ? (
             <View style={styles.emptyState}>
@@ -531,6 +558,14 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
     fontSize: 12,
     fontWeight: '500',
+  },
+  loadMoreContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  loadMoreButton: {
+    paddingHorizontal: 16,
   },
   emptyState: {
     flex: 1,
