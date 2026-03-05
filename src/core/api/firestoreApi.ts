@@ -31,7 +31,7 @@ export const firestoreApi = createApi({
         return { data: [] };
       },
       async onCacheEntryAdded(arg, { updateCachedData, cacheDataLoaded, cacheEntryRemoved }) {
-        let unsubscribe = () => {};
+        let unsubscribe = () => { };
         try {
           await cacheDataLoaded;
 
@@ -44,12 +44,13 @@ export const firestoreApi = createApi({
               });
             });
           });
-        } catch {
+        } catch (error) {
           Toast.show({
             type: 'error',
             text1: 'Something went wrong!',
             position: 'top',
           });
+          throw new Error(`Failed to fetch tasks: ${(error as Error).message}`);
         }
 
         await cacheEntryRemoved;
@@ -79,7 +80,7 @@ export const firestoreApi = createApi({
             position: 'top',
           });
 
-          return { error };
+          throw new Error(`Failed to fetch tasks: ${(error as Error).message}`);
         }
       },
       providesTags: ['Task'],
@@ -104,7 +105,7 @@ export const firestoreApi = createApi({
             text1: 'Something went wrong!',
             position: 'top',
           });
-          return { error };
+          throw new Error(`Failed to add task: ${(error as Error).message}`);
         }
       },
       invalidatesTags: ['Task'],
@@ -131,7 +132,7 @@ export const firestoreApi = createApi({
             text1: 'Something went wrong!',
             position: 'top',
           });
-          return { error };
+          throw new Error(`Failed to update task: ${(error as Error).message}`);
         }
       },
       invalidatesTags: ['Task'],
@@ -154,7 +155,7 @@ export const firestoreApi = createApi({
             text1: 'Something went wrong!',
             position: 'top',
           });
-          return { error };
+          throw new Error(`Failed to delete task: ${(error as Error).message}`);
         }
       },
       invalidatesTags: ['Task'],
